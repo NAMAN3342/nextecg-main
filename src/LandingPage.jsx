@@ -3,33 +3,33 @@ import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 
 export default function LandingPage() {
-  const [hoveredCard, setHoveredCard] = useState(null)
   const navigate = useNavigate()
+  const [hoveredCard, setHoveredCard] = useState(null)
 
   const medicalOptions = [
     {
       id: 1,
       title: '6-LEAD ECG',
       subtitle: 'Multi-lead Analysis',
-      route: '/6-lead-ecg'
+      path: '/6-lead-ecg'
     },
     {
       id: 2,
       title: "HOW'S MY HEART",
       subtitle: 'Quick Assessment',
-      route: '/hows-my-heart'
+      path: '/hows-my-heart'
     },
     {
       id: 3,
       title: 'AI AGENT',
       subtitle: 'Neural Analysis',
-      route: '#ai-agent'
+      path: '/ai-agent'
     },
     {
       id: 4,
       title: 'POST SURGERY',
       subtitle: 'Recovery Monitor',
-      route: '#post-surgery'
+      path: '/post-surgery'
     }
   ]
 
@@ -124,14 +124,7 @@ export default function LandingPage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: index * 0.1 }}
-              onClick={() => {
-                if (option.route.startsWith('#')) {
-                  // Coming soon features
-                  alert('Coming Soon!')
-                } else {
-                  navigate(option.route)
-                }
-              }}
+              onClick={() => navigate(option.path)}
               onMouseEnter={() => setHoveredCard(option.id)}
               onMouseLeave={() => setHoveredCard(null)}
               style={{

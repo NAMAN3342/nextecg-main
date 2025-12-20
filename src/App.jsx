@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, HashRouter, Routes, Route } from 'react-router-dom'
 import SplashScreen from './SplashScreen'
 import LandingPage from './LandingPage'
 import ECGVisualizer from './pages/SixLeadECG/ECGVisualizer'
@@ -16,13 +16,15 @@ function MainApp() {
 }
 
 export default function App() {
+  const isCapacitor = typeof window !== 'undefined' && window.Capacitor !== undefined
+  const Router = isCapacitor ? HashRouter : BrowserRouter
   return (
-    <BrowserRouter>
+    <Router>
       <Routes>
         <Route path="/" element={<MainApp />} />
         <Route path="/6-lead-ecg" element={<ECGVisualizer />} />
         <Route path="/hows-my-heart" element={<HowsMyHeart />} />
       </Routes>
-    </BrowserRouter>
+    </Router>
   )
 }

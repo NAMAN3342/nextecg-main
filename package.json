@@ -8,8 +8,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/cli": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
+    "cordova-plugin-android-permissions": "^1.1.5",
+    "cordova-plugin-bluetooth-serial": "^0.4.7",
     "framer-motion": "^12.23.26",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

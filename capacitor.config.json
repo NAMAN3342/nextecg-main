@@ -1,0 +1,5 @@
+{
+  "appId": "com.ecg.app",
+  "appName": "ECG App",
+  "webDir": "dist"
+}
