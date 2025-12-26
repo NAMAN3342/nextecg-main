@@ -1,0 +1,133 @@
+#define SAMPLE_RATE 125
+#define BAUD_RATE 9600     // HC-05 default
+#define INPUT_PIN1 A0
+#define INPUT_PIN2 A1
+
+#define CALIBRATION_TIME 5000
+#define REF_AMPLITUDE 1.0
+
+float baseline1 = 0, baseline2 = 0;
+float gain1 = 1.0, gain2 = 1.0;
+bool calibrated = false;
+unsigned long calibrationStart = 0;
+
+float minVal1 = 1023, maxVal1 = 0;
+float minVal2 = 1023, maxVal2 = 0;
+
+void setup() {
+  Serial.begin(BAUD_RATE);     // HC-05 on RX/TX
+  calibrationStart = millis();
+  Serial.println("START");    // Bluetooth me jayega
+}
+
+void loop() {
+  static unsigned long past = 0;
+  unsigned long now = micros();
+  unsigned long interval = now - past;
+  past = now;
+
+  static long timer = 0;
+  timer -= interval;
+
+  if (timer < 0) {
+    timer += 1000000 / SAMPLE_RATE;
+
+    float raw1 = analogRead(INPUT_PIN1);
+    float raw2 = analogRead(INPUT_PIN2);
+
+    float filtered1 = ECGFilter1(raw1);
+    float filtered2 = ECGFilter2(raw2);
+
+    // -------- Calibration (first 5 sec) --------
+    if (!calibrated) {
+      if (filtered1 < minVal1) minVal1 = filtered1;
+      if (filtered1 > maxVal1) maxVal1 = filtered1;
+      if (filtered2 < minVal2) minVal2 = filtered2;
+      if (filtered2 > maxVal2) maxVal2 = filtered2;
+
+      if (millis() - calibrationStart >= CALIBRATION_TIME) {
+        baseline1 = (maxVal1 + minVal1) / 2.0;
+        baseline2 = (maxVal2 + minVal2) / 2.0;
+
+        float amp1 = (maxVal1 - minVal1) / 2.0;
+        float amp2 = (maxVal2 - minVal2) / 2.0;
+        if (amp1 < 1) amp1 = 1;
+        if (amp2 < 1) amp2 = 1;
+
+        gain1 = REF_AMPLITUDE / amp1;
+        gain2 = REF_AMPLITUDE / amp2;
+
+        calibrated = true;
+        Serial.println("CAL_DONE");
+      }
+    }
+
+    // -------- Streaming --------
+    if (calibrated) {
+      float c1 = (filtered1 - baseline1) * gain1;
+      float c2 = (filtered2 - baseline2) * gain2;
+
+      Serial.print(c1, 3);
+      Serial.print(",");
+      Serial.println(c2, 3);
+    } else {
+      Serial.print(filtered1, 3);
+      Serial.print(",");
+      Serial.println(filtered2, 3);
+    }
+  }
+}
+
+// ---------------- FILTER CH1 ----------------
+float ECGFilter1(float input) {
+  float output = input;
+
+  { static float z1, z2;
+    float x = output - 0.70682283*z1 - 0.15621030*z2;
+    output = 0.28064917*x + 0.56129834*z1 + 0.28064917*z2;
+    z2 = z1; z1 = x;
+  }
+  { static float z1, z2;
+    float x = output - 0.95028224*z1 - 0.54073140*z2;
+    output = x + 2*z1 + z2;
+    z2 = z1; z1 = x;
+  }
+  { static float z1, z2;
+    float x = output + 1.95360385*z1 - 0.95423412*z2;
+    output = x - 2*z1 + z2;
+    z2 = z1; z1 = x;
+  }
+  { static float z1, z2;
+    float x = output + 1.98048558*z1 - 0.98111344*z2;
+    output = x - 2*z1 + z2;
+    z2 = z1; z1 = x;
+  }
+  return output;
+}
+
+// ---------------- FILTER CH2 ----------------
+float ECGFilter2(float input) {
+  float output = input;
+
+  { static float z1, z2;
+    float x = output - 0.70682283*z1 - 0.15621030*z2;
+    output = 0.28064917*x + 0.56129834*z1 + 0.28064917*z2;
+    z2 = z1; z1 = x;
+  }
+  { static float z1, z2;
+    float x = output - 0.95028224*z1 - 0.54073140*z2;
+    output = x + 2*z1 + z2;
+    z2 = z1; z1 = x;
+  }
+  { static float z1, z2;
+    float x = output + 1.95360385*z1 - 0.95423412*z2;
+    output = x - 2*z1 + z2;
+    z2 = z1; z1 = x;
+  }
+  { static float z1, z2;
+    float x = output + 1.98048558*z1 - 0.98111344*z2;
+    output = x - 2*z1 + z2;
+    z2 = z1; z1 = x;
+  }
+  return output;
+}
