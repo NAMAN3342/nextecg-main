@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react'
+import { useTheme } from './ThemeContext'
 
 export default function SplashScreen({ onComplete }) {
   const [progress, setProgress] = useState(0)
+  const { theme } = useTheme()
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -25,7 +27,7 @@ export default function SplashScreen({ onComplete }) {
       left: 0,
       width: '100%',
       height: '100vh',
-      background: '#0a0a0a',
+      background: theme.bg,
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -37,7 +39,7 @@ export default function SplashScreen({ onComplete }) {
         fontSize: '32px',
         fontWeight: 600,
         letterSpacing: '8px',
-        color: '#fff',
+        color: theme.text,
         marginBottom: '60px'
       }}>
         NEXTECG
@@ -47,7 +49,7 @@ export default function SplashScreen({ onComplete }) {
       <svg width="300" height="40" viewBox="0 0 300 40" style={{ marginBottom: '40px' }}>
         <path
           d="M0,20 L80,20 L100,20 L110,8 L120,32 L130,2 L140,20 L160,20 L300,20"
-          stroke="#fff"
+          stroke={theme.text}
           strokeWidth="1"
           fill="none"
           opacity="0.5"
@@ -58,13 +60,13 @@ export default function SplashScreen({ onComplete }) {
       <div style={{
         width: '200px',
         height: '1px',
-        background: '#222',
+        background: theme.progressBg,
         marginBottom: '20px'
       }}>
         <div style={{
           width: `${progress}%`,
           height: '100%',
-          background: '#fff',
+          background: theme.text,
           transition: 'width 0.1s ease'
         }} />
       </div>
@@ -73,7 +75,7 @@ export default function SplashScreen({ onComplete }) {
       <div style={{
         fontSize: '11px',
         letterSpacing: '2px',
-        color: '#444'
+        color: theme.textMuted
       }}>
         {progress}%
       </div>

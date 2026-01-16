@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { ThemeProvider } from './ThemeContext'
 import SplashScreen from './SplashScreen'
 import LandingPage from './LandingPage'
-import ECGVisualizer from './pages/SixLeadECG/ECGVisualizer'
+import SixLeadECGPage from './pages/SixLeadECG/index'
 import HowsMyHeart from './pages/HowsMyHeart/HowsMyHeart'
 
 function MainApp() {
@@ -17,12 +18,14 @@ function MainApp() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<MainApp />} />
-        <Route path="/6-lead-ecg" element={<ECGVisualizer />} />
-        <Route path="/hows-my-heart" element={<HowsMyHeart />} />
-      </Routes>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<MainApp />} />
+          <Route path="/6-lead-ecg" element={<SixLeadECGPage />} />
+          <Route path="/hows-my-heart" element={<HowsMyHeart />} />
+        </Routes>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }

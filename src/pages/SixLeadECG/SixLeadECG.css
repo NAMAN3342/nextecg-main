@@ -1,0 +1,541 @@
+/* MedECG Pro — Professional Medical Theme */
+/* Classic ECG Paper Style with Red Grid */
+
+:root {
+  /* Medical Color Palette */
+  --bg: #f8f9fa;              /* Clean medical white */
+  --bg-paper: #fff5f5;        /* ECG paper pink-white */
+  --panel: #ffffff;           /* Pure white panels */
+  --panel-border: #e8e8e8;    /* Subtle gray borders */
+  --panel-hover: #fafafa;     /* Light hover state */
+  
+  /* Text Colors */
+  --text: #1a1a2e;            /* Dark medical text */
+  --text-secondary: #4a5568;  /* Secondary gray text */
+  --muted: #718096;           /* Muted text */
+  
+  /* Medical Accent Colors */
+  --primary: #dc2626;         /* Medical red */
+  --primary-light: #fecaca;   /* Light red */
+  --primary-dark: #991b1b;    /* Dark red */
+  --secondary: #1e40af;       /* Medical blue */
+  --secondary-light: #dbeafe; /* Light blue */
+  
+  /* Status Colors */
+  --success: #059669;         /* Green - Normal */
+  --warning: #d97706;         /* Amber - Borderline */
+  --danger: #dc2626;          /* Red - Critical */
+  
+  /* ECG Grid Colors */
+  --grid-minor: rgba(239, 83, 80, 0.25);   /* Light red 1mm grid */
+  --grid-major: rgba(220, 38, 38, 0.5);    /* Bold red 5mm grid */
+  --grid-bg: #fff8f8;                       /* Pink ECG paper */
+  
+  /* Waveform */
+  --wave: #000000;            /* Black ECG trace */
+  --wave-secondary: #1e40af;  /* Blue secondary trace */
+  
+  /* Button Colors */
+  --btn-bg: #ffffff;
+  --btn-border: #d1d5db;
+  --btn-hover: #f3f4f6;
+  --btn-primary: #dc2626;
+  --btn-primary-hover: #b91c1c;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: linear-gradient(135deg, #f0f4f8 0%, #e8ecf0 100%);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.app {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== HEADER - Medical Professional Style ===== */
+.header {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid var(--primary);
+  border-radius: 12px;
+  padding: 20px 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+  position: relative;
+}
+
+.header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #dc2626 0%, #ef4444 50%, #dc2626 100%);
+  border-radius: 12px 12px 0 0;
+}
+
+.header-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.heartbeat-icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+  border-radius: 12px;
+  border: 2px solid #fecaca;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.15);
+}
+
+.heartbeat-line {
+  stroke: #dc2626 !important;
+  animation: heartbeat 1.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 3px rgba(220, 38, 38, 0.5));
+}
+
+@keyframes heartbeat {
+  0%, 100% { 
+    stroke-dasharray: 0 200;
+    opacity: 0.7;
+  }
+  50% { 
+    stroke-dasharray: 200 0;
+    opacity: 1;
+  }
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.brand-title {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  line-height: 1;
+}
+
+.brand-next {
+  color: #dc2626;
+  text-shadow: none;
+}
+
+.brand-ecg {
+  color: #1e40af;
+  text-shadow: none;
+}
+
+.brand-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+.header-info {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.header-info::before {
+  content: '●';
+  color: #059669;
+  font-size: 8px;
+  animation: statusPulse 2s ease-in-out infinite;
+}
+
+@keyframes statusPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* ===== CONTROLS & BUTTONS ===== */
+.controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.controls label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.controls input[type="range"] {
+  accent-color: #dc2626;
+}
+
+.controls input[type="number"],
+.controls select {
+  padding: 6px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 12px;
+  background: #ffffff;
+  color: var(--text);
+}
+
+.controls input[type="checkbox"] {
+  accent-color: #dc2626;
+  width: 16px;
+  height: 16px;
+}
+
+.btn {
+  background: var(--btn-bg);
+  color: var(--text);
+  border: 1px solid var(--btn-border);
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn:hover {
+  background: var(--btn-hover);
+  border-color: #9ca3af;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn-primary {
+  background: var(--btn-primary);
+  color: #ffffff;
+  border-color: var(--btn-primary);
+}
+
+.btn-primary:hover {
+  background: var(--btn-primary-hover);
+  border-color: var(--btn-primary-hover);
+}
+
+/* ===== GRID CARDS - ECG Paper Style ===== */
+.grid-card {
+  background: var(--panel);
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid var(--primary);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  transition: all 0.25s ease;
+}
+
+.grid-card:hover {
+  box-shadow: 0 4px 20px rgba(220, 38, 38, 0.08);
+  border-color: #fecaca;
+}
+
+.lead-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.lead-title {
+  font-weight: 700;
+  color: var(--text);
+  font-size: 14px;
+  letter-spacing: 0.3px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lead-title::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: #dc2626;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* ===== FOOTER NOTE ===== */
+.footer-note {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #fef2f2 0%, #fff 100%);
+  border-radius: 8px;
+  border-left: 3px solid #dc2626;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* ===== CANVAS ===== */
+canvas {
+  display: block;
+  width: 100%;
+  border-radius: 6px;
+}
+
+/* ===== RECORDING INDICATOR ===== */
+@keyframes recordPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.recording-indicator {
+  animation: recordPulse 1s ease-in-out infinite;
+}
+
+/* ===== RISK PANEL STYLES ===== */
+.risk-panel {
+  background: linear-gradient(135deg, #ffffff 0%, #fafafa 100%);
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.risk-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.risk-title {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--text);
+}
+
+.risk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.risk-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.risk-item-label {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.risk-item-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.risk-item-unit {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: 2px;
+}
+
+.risk-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-top: 4px;
+}
+
+.risk-status.normal {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.risk-status.warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.risk-status.danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* ===== VECTORCARDIOGRAM STYLES ===== */
+.vcg-panel {
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #e5e7eb;
+  border-left: 3px solid #1e40af;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.vcg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.vcg-title {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vcg-canvas-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+/* ===== OVERALL RISK SCORE ===== */
+.overall-risk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 16px;
+  background: #f8fafc;
+  border-radius: 10px;
+  margin-top: 12px;
+}
+
+.risk-score-label {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.risk-score-value {
+  font-size: 24px;
+  font-weight: 800;
+  padding: 8px 20px;
+  border-radius: 8px;
+}
+
+.risk-score-value.low {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.risk-score-value.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.risk-score-value.high {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* ===== DASHBOARD LAYOUT ===== */
+.dashboard-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== MODAL STYLES ===== */
+.report-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.98);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.report-modal h2 {
+  color: #dc2626;
+  margin-bottom: 20px;
+  font-size: 22px;
+  font-weight: 700;
+}

@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import VectorCardiogram from './VectorCardiogram'
+import RiskAnalysis from './RiskAnalysis'
 
-export default function ECGVisualizer(){
-  const navigate = useNavigate()
+export default function ECGVisualizer() {
   // Defaults and constants
   const DEFAULT_SAMPLE_RATE = 125
   const DEFAULT_PAPER_SPEED = 25 // mm/s
@@ -32,9 +32,10 @@ export default function ECGVisualizer(){
   const [showReport, setShowReport] = useState(false)
   const [recordedData, setRecordedData] = useState(null)
   const [connectError, setConnectError] = useState(null)
+  const [liveLeadData, setLiveLeadData] = useState({ leadI: [], leadII: [], leadIII: [], aVR: [], aVL: [], aVF: [] })
   const reportCanvasRef = useRef(null)
 
-  const leads = ['Lead I','Lead II','Lead III','aVR','aVL','aVF']
+  const leads = ['Lead I', 'Lead II', 'Lead III', 'aVR', 'aVL', 'aVF']
   // Paired layout: [Lead I, aVL], [Lead II, aVF], [Lead III, aVR]
   const leadPairs = [
     [0, 4], // Lead I (idx 0) + aVL (idx 4)
@@ -50,12 +51,12 @@ export default function ECGVisualizer(){
   const runningRef = useRef(false)
   const pairCanvasRefs = useRef([]) // 3 canvases for 3 rows of paired leads
   // DSP filter state per lead (one-pole HP + one-pole LP)
-  const hpStateRef = useRef(leads.map(()=>({x1:0,y1:0})))
-  const lpStateRef = useRef(leads.map(()=>({y1:0})))
+  const hpStateRef = useRef(leads.map(() => ({ x1: 0, y1: 0 })))
+  const lpStateRef = useRef(leads.map(() => ({ y1: 0 })))
   const hpAlphaRef = useRef(0)
   const lpAlphaRef = useRef(0)
   // Recording via refs to avoid stale closures
-  const recordRef = useRef({ active:false, data:null, count:0 })
+  const recordRef = useRef({ active: false, data: null, count: 0 })
   const autoStopTriggeredRef = useRef(false)
   const manualStopRef = useRef(false)
   const sampleRateRef = useRef(sampleRate)
@@ -63,52 +64,52 @@ export default function ECGVisualizer(){
   const frozenBufferRef = useRef(null)
 
   // (re)initialize buffers when secondsWindow changes
-  useEffect(()=>{
+  useEffect(() => {
     const samples = Math.max(1, Math.floor(sampleRate * secondsWindow))
-    bufferRef.current = leads.map(()=>new Float32Array(samples))
+    bufferRef.current = leads.map(() => new Float32Array(samples))
     writeIndexRef.current = 0
-  },[secondsWindow, sampleRate])
+  }, [secondsWindow, sampleRate])
 
   // Size helper to keep canvas attributes in sync with settings
-  function sizeAllCanvases(){
+  function sizeAllCanvases() {
     const samples = bufferRef.current[0]?.length || Math.max(1, Math.floor(sampleRate * secondsWindow))
     const mmPerSample = DEFAULT_PAPER_SPEED / sampleRate
     const width = Math.max(800, Math.floor(samples * pixelsPerMm * mmPerSample))
-    for (let i=0; i<leadPairs.length; i++){
+    for (let i = 0; i < leadPairs.length; i++) {
       const el = pairCanvasRefs.current[i]
-      if(!el) continue
+      if (!el) continue
       el.width = width
       el.height = 100 // Height for one row with 2 leads side by side
     }
   }
 
   // Ensure canvas dimensions track settings
-  useEffect(()=>{ sizeAllCanvases() },[pixelsPerMm, secondsWindow])
+  useEffect(() => { sizeAllCanvases() }, [pixelsPerMm, secondsWindow])
 
   // keep sampleRate in a ref for use inside serial loop
-  useEffect(()=>{ sampleRateRef.current = sampleRate },[sampleRate])
+  useEffect(() => { sampleRateRef.current = sampleRate }, [sampleRate])
 
   // Recompute filter coefficients when sampleRate changes
-  useEffect(()=>{
-    const dt = 1/Math.max(1, sampleRateRef.current)
+  useEffect(() => {
+    const dt = 1 / Math.max(1, sampleRateRef.current)
     // High-pass ~0.5 Hz
     const hpFc = 0.5
-    const hpRc = 1/(2*Math.PI*hpFc)
-    hpAlphaRef.current = hpRc/(hpRc + dt)
+    const hpRc = 1 / (2 * Math.PI * hpFc)
+    hpAlphaRef.current = hpRc / (hpRc + dt)
     // Low-pass ~40 Hz
     const lpFc = 40
-    const lpRc = 1/(2*Math.PI*lpFc)
-    lpAlphaRef.current = dt/(lpRc + dt)
+    const lpRc = 1 / (2 * Math.PI * lpFc)
+    lpAlphaRef.current = dt / (lpRc + dt)
     // reset states when rate changes
-    hpStateRef.current = leads.map(()=>({x1:0,y1:0}))
-    lpStateRef.current = leads.map(()=>({y1:0}))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[sampleRate])
+    hpStateRef.current = leads.map(() => ({ x1: 0, y1: 0 }))
+    lpStateRef.current = leads.map(() => ({ y1: 0 }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sampleRate])
 
   // Convert incoming value to mV (heuristic)
-  function valueToMv(v){
+  function valueToMv(v) {
     if (typeof v !== 'number' || isNaN(v)) return 0
-    if (inputUnits === 'adc'){
+    if (inputUnits === 'adc') {
       // Treat v as raw ADC counts (0..1023) and convert to mV using VREF
       const volts = (v * VREF) / ADC_MAX
       return volts * 1000
@@ -117,39 +118,41 @@ export default function ECGVisualizer(){
     return v
   }
 
-  function drawGrid(ctx, width, height, pixelsPerMm){
-    // Dark theme grid
-    ctx.fillStyle = '#0b0f14'
-    ctx.fillRect(0,0,width,height)
+  function drawGrid(ctx, width, height, pixelsPerMm) {
+    // Medical ECG paper - pink/white background with red grid
+    ctx.fillStyle = '#fff8f8'
+    ctx.fillRect(0, 0, width, height)
     const px = pixelsPerMm
-    ctx.strokeStyle = 'rgba(148,163,184,0.12)'
-    ctx.lineWidth = 0.6
-    for(let x=0;x<=width;x+=px){ctx.beginPath();ctx.moveTo(x+0.5,0);ctx.lineTo(x+0.5,height);ctx.stroke()}
-    for(let y=0;y<=height;y+=px){ctx.beginPath();ctx.moveTo(0,y+0.5);ctx.lineTo(width,y+0.5);ctx.stroke()}
-    ctx.strokeStyle = 'rgba(148,163,184,0.22)'
-    ctx.lineWidth = 1.0
-    for(let x=0;x<=width;x+=px*5){ctx.beginPath();ctx.moveTo(x+0.5,0);ctx.lineTo(x+0.5,height);ctx.stroke()}
-    for(let y=0;y<=height;y+=px*5){ctx.beginPath();ctx.moveTo(0,y+0.5);ctx.lineTo(width,y+0.5);ctx.stroke()}
+    // Minor 1mm grid lines - light red
+    ctx.strokeStyle = 'rgba(239, 83, 80, 0.3)'
+    ctx.lineWidth = 0.5
+    for (let x = 0; x <= width; x += px) { ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, height); ctx.stroke() }
+    for (let y = 0; y <= height; y += px) { ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(width, y + 0.5); ctx.stroke() }
+    // Major 5mm grid lines - bold red
+    ctx.strokeStyle = 'rgba(220, 38, 38, 0.6)'
+    ctx.lineWidth = 1.2
+    for (let x = 0; x <= width; x += px * 5) { ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, height); ctx.stroke() }
+    for (let y = 0; y <= height; y += px * 5) { ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(width, y + 0.5); ctx.stroke() }
   }
 
-  function drawAll(){
+  function drawAll() {
     const samples = bufferRef.current[0]?.length || 1
     const mmPerSample = DEFAULT_PAPER_SPEED / sampleRate
     const xStep = pixelsPerMm * mmPerSample
 
     // Draw each row with paired leads side by side
-    for(let rowIdx=0; rowIdx<leadPairs.length; rowIdx++){
+    for (let rowIdx = 0; rowIdx < leadPairs.length; rowIdx++) {
       const canvas = pairCanvasRefs.current[rowIdx]
-      if(!canvas) continue
+      if (!canvas) continue
       const ctx = canvas.getContext('2d')
       const w = canvas.width
       const h = canvas.height
 
-      drawGrid(ctx,w,h,pixelsPerMm)
+      drawGrid(ctx, w, h, pixelsPerMm)
 
       const [leftLeadIdx, rightLeadIdx] = leadPairs[rowIdx]
       const halfW = w / 2
-      
+
       // If display is frozen, draw from frozenBuffer snapshot; otherwise draw from live ring buffer
       if (freezeDisplayRef.current && frozenBufferRef.current) {
         const frozen = frozenBufferRef.current
@@ -158,7 +161,7 @@ export default function ECGVisualizer(){
       } else {
         // Draw left lead (e.g., Lead I)
         drawLeadTrace(ctx, leftLeadIdx, 0, halfW, h, samples, xStep, leads[leftLeadIdx])
-        
+
         // Draw right lead (e.g., aVL)
         drawLeadTrace(ctx, rightLeadIdx, halfW, halfW, h, samples, xStep, leads[rightLeadIdx])
       }
@@ -166,76 +169,75 @@ export default function ECGVisualizer(){
   }
 
   // samplesArr is an optional plain array used when drawing a frozen snapshot.
-  function drawLeadTrace(ctx, leadIdx, xOffset, width, height, samples, xStep, leadName, samplesArr){
-    const baselineY = Math.floor(height/2)
-    
-    // midline
-    ctx.strokeStyle='rgba(148,163,184,0.12)'
-    ctx.lineWidth = 0.5
-    ctx.beginPath()
-    ctx.moveTo(xOffset, baselineY+0.5)
-    ctx.lineTo(xOffset + width, baselineY+0.5)
-    ctx.stroke()
+  function drawLeadTrace(ctx, leadIdx, xOffset, width, height, samples, xStep, leadName, samplesArr) {
+    const baselineY = Math.floor(height / 2)
 
-    // calibration pulse (1 mV, 200 ms) at left
+    // midline - subtle gray dashed
+    ctx.strokeStyle = 'rgba(0,0,0,0.1)'
+    ctx.lineWidth = 0.5
+    ctx.setLineDash([4, 4])
+    ctx.beginPath()
+    ctx.moveTo(xOffset, baselineY + 0.5)
+    ctx.lineTo(xOffset + width, baselineY + 0.5)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // calibration pulse (1 mV, 200 ms) at left - medical black
     const calHeightPx = 10 * pixelsPerMm // 10 mm = 1 mV
     const calWidthPx = 5 * pixelsPerMm   // 5 mm = 0.2 s at 25 mm/s
     const calX = xOffset + 8
-    ctx.fillStyle = '#00d9ff'
-    ctx.shadowColor = 'rgba(0,217,255,0.5)'
-    ctx.shadowBlur = 8
+    ctx.strokeStyle = '#000000'
+    ctx.lineWidth = 2
+    ctx.lineCap = 'square'
+    ctx.lineJoin = 'miter'
     ctx.beginPath()
     ctx.moveTo(calX, baselineY)
     ctx.lineTo(calX, baselineY - calHeightPx)
     ctx.lineTo(calX + calWidthPx, baselineY - calHeightPx)
     ctx.lineTo(calX + calWidthPx, baselineY)
-    ctx.closePath()
-    ctx.fill()
-    ctx.shadowBlur = 0
+    ctx.stroke()
 
-    // Lead label
-    ctx.fillStyle = 'rgba(229,231,235,0.9)'
-    ctx.font = '12px Inter, system-ui, Arial'
+    // Lead label - bold dark text
+    ctx.fillStyle = '#1a1a2e'
+    ctx.font = 'bold 12px Inter, system-ui, Arial'
     ctx.fillText(leadName, calX + calWidthPx + 6, 14)
 
-    // waveform
-    ctx.lineWidth = 1.6
-    ctx.strokeStyle = '#00d9ff'
-    ctx.shadowColor = 'rgba(0,217,255,0.4)'
-    ctx.shadowBlur = 6
+    // waveform - medical black trace
+    ctx.lineWidth = 1.8
+    ctx.strokeStyle = '#000000'
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
     ctx.beginPath()
     let x = xOffset
-    if (samplesArr && Array.isArray(samplesArr)){
+    if (samplesArr && Array.isArray(samplesArr)) {
       // draw from frozen array sequentially
-      for (let s=0; s<samplesArr.length; s++){
+      for (let s = 0; s < samplesArr.length; s++) {
         const mv = samplesArr[s] || 0
         const mm = mv * DEFAULT_MM_PER_MV * gain
         const y = baselineY - mm * pixelsPerMm
-        if (s===0) ctx.moveTo(x,y)
-        else ctx.lineTo(x,y)
+        if (s === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
         x += xStep
         if (x > xOffset + width + 2) break
       }
     } else {
       // live ring buffer draw
-      for(let s=0;s<samples;s++){
+      for (let s = 0; s < samples; s++) {
         const idx = (writeIndexRef.current + s) % samples
         const mv = bufferRef.current[leadIdx][idx] || 0
         const mm = mv * DEFAULT_MM_PER_MV * gain
         const y = baselineY - mm * pixelsPerMm
-        if(s===0) ctx.moveTo(x,y)
-        else ctx.lineTo(x,y)
+        if (s === 0) ctx.moveTo(x, y)
+        else ctx.lineTo(x, y)
         x += xStep
         if (x > xOffset + width + 2) break
       }
     }
     ctx.stroke()
-    ctx.shadowBlur = 0
-    ctx.shadowColor = 'transparent'
   }
 
   // One-pole high-pass followed by one-pole low-pass per-lead
-  function filterSample(leadIdx, x){
+  function filterSample(leadIdx, x) {
     // high-pass: y[n] = a*(y[n-1] + x[n] - x[n-1])
     const aHP = hpAlphaRef.current
     const stHP = hpStateRef.current[leadIdx]
@@ -251,13 +253,13 @@ export default function ECGVisualizer(){
   }
 
   // animation - always run so live ECG continues while report modal is open
-  useEffect(()=>{
+  useEffect(() => {
     let raf = null
-    function tick(){ drawAll(); raf = requestAnimationFrame(tick) }
+    function tick() { drawAll(); raf = requestAnimationFrame(tick) }
     raf = requestAnimationFrame(tick)
-    return ()=>{ if(raf) cancelAnimationFrame(raf) }
+    return () => { if (raf) cancelAnimationFrame(raf) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[pixelsPerMm,secondsWindow,gain])
+  }, [pixelsPerMm, secondsWindow, gain])
 
   // Draw report to a given canvas (shared by modal and export)
   function drawReportPage(canvas, data) {
@@ -276,20 +278,20 @@ export default function ECGVisualizer(){
     // Minor 1mm grid
     ctx.strokeStyle = 'rgba(255, 100, 100, 0.5)'
     ctx.lineWidth = 1
-    for (let x = 0; x <= canvas.width; x += ppm) { 
-      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke() 
+    for (let x = 0; x <= canvas.width; x += ppm) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke()
     }
-    for (let y = 0; y <= canvas.height; y += ppm) { 
-      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke() 
+    for (let y = 0; y <= canvas.height; y += ppm) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke()
     }
     // Major 5mm grid (0.5 second at 25mm/s, 0.5mV at 10mm/mV)
     ctx.strokeStyle = 'rgba(220,38,38,0.9)'
     ctx.lineWidth = 2
-    for (let x = 0; x <= canvas.width; x += ppm*5) { 
-      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke() 
+    for (let x = 0; x <= canvas.width; x += ppm * 5) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke()
     }
-    for (let y = 0; y <= canvas.height; y += ppm*5) { 
-      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke() 
+    for (let y = 0; y <= canvas.height; y += ppm * 5) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke()
     }
 
     const marginMm = 8
@@ -300,36 +302,36 @@ export default function ECGVisualizer(){
     // Header with comprehensive info
     ctx.fillStyle = '#000'
     ctx.font = 'bold 18px Arial, Helvetica, sans-serif'
-  const firstLead = data['Lead I'] || data['I'] || data['Lead II'] || data['II'] || data['Lead III'] || data['III']
-  const recordedSeconds = firstLead ? (firstLead.length / sampleRate).toFixed(1) : '0.0'
-  // If metadata exists, show that this is a 1s excerpt at the 15s mark (or other capture time)
-  const meta = data && data.__meta ? data.__meta : null
-  const headerTitle = meta && meta.excerptSeconds && meta.captureAt ? `NextECG — 6-Lead ECG Report (excerpt ${meta.excerptSeconds}s at ${meta.captureAt}s)` : `NextECG — 6-Lead ECG Report (${recordedSeconds}s)`
-  ctx.fillText(headerTitle, margin, margin + 14)
-    
+    const firstLead = data['Lead I'] || data['I'] || data['Lead II'] || data['II'] || data['Lead III'] || data['III']
+    const recordedSeconds = firstLead ? (firstLead.length / sampleRate).toFixed(1) : '0.0'
+    // If metadata exists, show that this is a 1s excerpt at the 15s mark (or other capture time)
+    const meta = data && data.__meta ? data.__meta : null
+    const headerTitle = meta && meta.excerptSeconds && meta.captureAt ? `NextECG — 6-Lead ECG Report (excerpt ${meta.excerptSeconds}s at ${meta.captureAt}s)` : `NextECG — 6-Lead ECG Report (${recordedSeconds}s)`
+    ctx.fillText(headerTitle, margin, margin + 14)
+
     ctx.font = '12px Arial, Helvetica, sans-serif'
     const dateStr = new Date().toLocaleString()
     ctx.fillText(`Date: ${dateStr}`, margin, margin + 30)
-    
-  // Technical parameters
-  ctx.fillText(`Time Domain: 25 mm/s  |  Amplitude: 10 mm/mV  |  Sample Rate: ${sampleRate} Hz`, margin, margin + 44)
-  const recordingLabelSeconds = meta && meta.excerptSeconds ? `${meta.excerptSeconds}` : recordedSeconds
-  ctx.fillText(`Frequency Domain: Filter 0.5–40 Hz (Bandpass)  |  Recording: ${recordingLabelSeconds} seconds`, margin, margin + 58)
+
+    // Technical parameters
+    ctx.fillText(`Time Domain: 25 mm/s  |  Amplitude: 10 mm/mV  |  Sample Rate: ${sampleRate} Hz`, margin, margin + 44)
+    const recordingLabelSeconds = meta && meta.excerptSeconds ? `${meta.excerptSeconds}` : recordedSeconds
+    ctx.fillText(`Frequency Domain: Filter 0.5–40 Hz (Bandpass)  |  Recording: ${recordingLabelSeconds} seconds`, margin, margin + 58)
 
     // Calibration pulse 1mV
     const calX = margin
-    const calY = margin + headerH - (12*ppm)
+    const calY = margin + headerH - (12 * ppm)
     ctx.strokeStyle = '#000'
     ctx.lineWidth = 2.5
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     ctx.beginPath()
     ctx.moveTo(calX, calY)
-    ctx.lineTo(calX, calY + 10*ppm)
-    ctx.lineTo(calX + 5*ppm, calY + 10*ppm)
-    ctx.lineTo(calX + 5*ppm, calY)
+    ctx.lineTo(calX, calY + 10 * ppm)
+    ctx.lineTo(calX + 5 * ppm, calY + 10 * ppm)
+    ctx.lineTo(calX + 5 * ppm, calY)
     ctx.stroke()
-    ctx.fillText('1mV', calX + 6*ppm, calY + 6*ppm)
+    ctx.fillText('1mV', calX + 6 * ppm, calY + 6 * ppm)
 
     // Seconds markers across header
     const sampleLead = data['I'] || data['II'] || data['III'] || data['aVR'] || data['aVL'] || data['aVF']
@@ -338,7 +340,7 @@ export default function ECGVisualizer(){
     ctx.strokeStyle = '#000'
     ctx.lineWidth = 1.5
     ctx.font = '12px Arial, Helvetica, sans-serif'
-    for (let s=0; s<=secondsToShow; s++){
+    for (let s = 0; s <= secondsToShow; s++) {
       const x = margin + s * 25 * ppm
       ctx.beginPath(); ctx.moveTo(x, margin + headerH - 20); ctx.lineTo(x, margin + headerH - 10); ctx.stroke()
       ctx.fillText(`${s}s`, x + 3, margin + headerH - 14)
@@ -346,48 +348,48 @@ export default function ECGVisualizer(){
 
     // Normalize/ensure leads: prefer 'Lead I' keys but accept multiple variants.
     const shortKeys = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF']
-    const longLabels = ['Lead I','Lead II','Lead III','aVR','aVL','aVF']
+    const longLabels = ['Lead I', 'Lead II', 'Lead III', 'aVR', 'aVL', 'aVF']
     // Build normalized map
     const norm = {}
-    function findSamples(variants){ for (const v of variants){ if (data && data[v]) return data[v] } return null }
-    for (let i=0;i<shortKeys.length;i++){
+    function findSamples(variants) { for (const v of variants) { if (data && data[v]) return data[v] } return null }
+    for (let i = 0; i < shortKeys.length; i++) {
       const short = shortKeys[i]
       const long = longLabels[i]
       norm[short] = findSamples([long, short, `Lead ${short}`])
     }
     // Derive missing leads if requested
     if (advancedReport) {
-      if (!norm['III'] && norm['I'] && norm['II']){
+      if (!norm['III'] && norm['I'] && norm['II']) {
         const a = norm['II'], b = norm['I']; const len = Math.min(a.length, b.length); const arr = new Array(len)
-        for (let k=0;k<len;k++) arr[k] = a[k] - b[k]
+        for (let k = 0; k < len; k++) arr[k] = a[k] - b[k]
         norm['III'] = arr
       }
-      if ((!norm['aVR'] || !norm['aVL'] || !norm['aVF']) && norm['I'] && norm['II']){
+      if ((!norm['aVR'] || !norm['aVL'] || !norm['aVF']) && norm['I'] && norm['II']) {
         const I = norm['I'], II = norm['II']; const len = Math.min(I.length, II.length)
         const avr = new Array(len), avl = new Array(len), avf = new Array(len)
-        for (let k=0;k<len;k++){ const la=I[k], ll=II[k], ra=0.0; avr[k]=ra-(la+ll)/2; avl[k]=la-(ra+ll)/2; avf[k]=ll-(ra+la)/2 }
-        if (!norm['aVR']) norm['aVR']=avr
-        if (!norm['aVL']) norm['aVL']=avl
-        if (!norm['aVF']) norm['aVF']=avf
+        for (let k = 0; k < len; k++) { const la = I[k], ll = II[k], ra = 0.0; avr[k] = ra - (la + ll) / 2; avl[k] = la - (ra + ll) / 2; avf[k] = ll - (ra + la) / 2 }
+        if (!norm['aVR']) norm['aVR'] = avr
+        if (!norm['aVL']) norm['aVL'] = avl
+        if (!norm['aVF']) norm['aVF'] = avf
       }
     }
     const leadHeightMm = 26
     const leadHeight = leadHeightMm * ppm
     const startY = margin + headerH + 5
-    const innerWidth = canvas.width - 2*margin
+    const innerWidth = canvas.width - 2 * margin
 
     // draw paired rows: [Lead I | aVL], [Lead II | aVF], [Lead III | aVR]
-    const pairList = [[0,4],[1,5],[2,3]]
+    const pairList = [[0, 4], [1, 5], [2, 3]]
     const gapMm = 6
     const gapPx = gapMm * ppm
     const colWidth = Math.floor((innerWidth - gapPx) / 2)
-    for (let row=0; row<pairList.length; row++){
+    for (let row = 0; row < pairList.length; row++) {
       const [leftIdx, rightIdx] = pairList[row]
       const leftShort = shortKeys[leftIdx]
       const rightShort = shortKeys[rightIdx]
       const leftLabel = longLabels[leftIdx]
       const rightLabel = longLabels[rightIdx]
-      const yBase = startY + row * leadHeight + (leadHeight/2)
+      const yBase = startY + row * leadHeight + (leadHeight / 2)
       const leftX = margin
       const rightX = margin + colWidth + gapPx
       drawReportLeadStrip(ctx, norm[leftShort] || null, leftLabel, leftX, yBase, colWidth, ppm)
@@ -403,12 +405,12 @@ export default function ECGVisualizer(){
 
   function drawReportLeadStrip(ctx, samples, leadName, xStart, yBase, width, ppm) {
     if (!samples || samples.length === 0) return
-    
+
     // Lead label - BOLD BLACK, proper names
     ctx.fillStyle = '#000000'
     ctx.font = 'bold 16px Arial, Helvetica, sans-serif'
     ctx.fillText(leadName, xStart + 2, yBase - 12)
-    
+
     // Baseline reference
     ctx.strokeStyle = 'rgba(0,0,0,0.15)'
     ctx.lineWidth = 0.8
@@ -427,12 +429,12 @@ export default function ECGVisualizer(){
     const timeScale = Math.min(1.0, availWidthMm / totalWidthMm)
     ctx.strokeStyle = 'rgba(0,0,0,0.5)'
     ctx.lineWidth = 1
-    for (let s = 0; s <= Math.ceil(totalSeconds); s++){
+    for (let s = 0; s <= Math.ceil(totalSeconds); s++) {
       const xMm = s * mmPerSec * timeScale
       const x = xStart + (xMm * ppm)
       ctx.beginPath(); ctx.moveTo(x, yBase - 6); ctx.lineTo(x, yBase + 6); ctx.stroke()
     }
-    
+
     // ECG WAVEFORM - THICK BLACK with ANTI-ALIASING
     ctx.strokeStyle = '#000000'
     ctx.lineWidth = 2.5
@@ -440,26 +442,26 @@ export default function ECGVisualizer(){
     ctx.lineJoin = 'round'
     ctx.shadowColor = 'rgba(0,0,0,0.2)'
     ctx.shadowBlur = 1
-    
+
     ctx.beginPath()
-    
-  const mmPerSec2 = 25 // standard ECG paper speed
-  const totalSeconds2 = samples.length / sampleRate
-  const totalWidthMm2 = totalSeconds2 * mmPerSec2 // total width needed in mm
-  const availWidthMm2 = (width / ppm) - 5 // available width minus padding
-    
-  // If recording is longer than available width, compress time scale proportionally
-  const timeScale2 = Math.min(1.0, availWidthMm2 / totalWidthMm2)
-    
+
+    const mmPerSec2 = 25 // standard ECG paper speed
+    const totalSeconds2 = samples.length / sampleRate
+    const totalWidthMm2 = totalSeconds2 * mmPerSec2 // total width needed in mm
+    const availWidthMm2 = (width / ppm) - 5 // available width minus padding
+
+    // If recording is longer than available width, compress time scale proportionally
+    const timeScale2 = Math.min(1.0, availWidthMm2 / totalWidthMm2)
+
     for (let i = 0; i < samples.length; i++) {
-  const timeSec = i / sampleRate
-  const xMm = timeSec * mmPerSec2 * timeScale2
+      const timeSec = i / sampleRate
+      const xMm = timeSec * mmPerSec2 * timeScale2
       const xPos = xStart + (xMm * ppm)
-      
+
       const mv = samples[i]
       const yMm = mv * DEFAULT_MM_PER_MV * gain // 10mm per mV standard
       const yPos = yBase - (yMm * ppm)
-      
+
       if (i === 0) {
         ctx.moveTo(xPos, yPos)
       } else {
@@ -472,13 +474,13 @@ export default function ECGVisualizer(){
   }
 
   // connect via Web Serial
-  async function connect(){
+  async function connect() {
     setConnectError(null)
-    if(!('serial' in navigator)) { setConnectError('Web Serial API not available in this browser. Use Chrome or Edge.'); alert('Use Chrome or Edge with Web Serial enabled'); return }
-    try{
+    if (!('serial' in navigator)) { setConnectError('Web Serial API not available in this browser. Use Chrome or Edge.'); alert('Use Chrome or Edge with Web Serial enabled'); return }
+    try {
       // Helpful diagnostic: list already-authorized ports
       if (navigator.serial.getPorts) {
-        try { const existing = await navigator.serial.getPorts(); console.debug('Previously authorized serial ports:', existing.length) } catch(e){ console.debug('getPorts failed', e) }
+        try { const existing = await navigator.serial.getPorts(); console.debug('Previously authorized serial ports:', existing.length) } catch (e) { console.debug('getPorts failed', e) }
       }
       const port = await navigator.serial.requestPort()
       await port.open({ baudRate: 115200 })
@@ -488,70 +490,70 @@ export default function ECGVisualizer(){
       port.readable.pipeTo(decoder.writable)
       const reader = decoder.readable.getReader()
       readerRef.current = reader
-  runningRef.current = true
-  // enter calibration mode on connect; Arduino typically calibrates for ~5s
-  setIsCalibrating(true)
-  // fallback: turn off calibration after 5s unless device announces completion
-  const calibTimeout = setTimeout(()=>{ setIsCalibrating(false) }, 5000)
+      runningRef.current = true
+      // enter calibration mode on connect; Arduino typically calibrates for ~5s
+      setIsCalibrating(true)
+      // fallback: turn off calibration after 5s unless device announces completion
+      const calibTimeout = setTimeout(() => { setIsCalibrating(false) }, 5000)
       let textBuffer = ''
 
-      while(runningRef.current){
+      while (runningRef.current) {
         const { value, done } = await reader.read()
-        if(done) break
+        if (done) break
         textBuffer += value
         const lines = textBuffer.split('\n')
         textBuffer = lines.pop() || ''
-        for(let line of lines){
-          line = line.trim(); if(!line) continue
+        for (let line of lines) {
+          line = line.trim(); if (!line) continue
           // Detect calibration logs from Arduino (case-insensitive)
           const lower = line.toLowerCase()
-          if(lower.includes('calibration complete') || lower.includes('calibrated') || lower.includes('calibration done')){
+          if (lower.includes('calibration complete') || lower.includes('calibrated') || lower.includes('calibration done')) {
             setIsCalibrating(false)
             clearTimeout(calibTimeout)
             continue
           }
-          if(lower.includes('starting') && lower.includes('calibration')){
+          if (lower.includes('starting') && lower.includes('calibration')) {
             setIsCalibrating(true)
             continue
           }
           // Robust parse: accept JSON, 6-value CSV, or 2-value CSV (Lead I, Lead II)
           let arr = null
           let parsedJson = null
-          try{ parsedJson = JSON.parse(line) }catch(_e){ parsedJson = null }
-          if(parsedJson && typeof parsedJson === 'object'){
-            const keys = ['lead1','lead2','lead3','avr','avl','avf']
-            if(keys.every(k=>k in parsedJson)){
-              arr = keys.map(k=>parseFloat(parsedJson[k]))
+          try { parsedJson = JSON.parse(line) } catch (_e) { parsedJson = null }
+          if (parsedJson && typeof parsedJson === 'object') {
+            const keys = ['lead1', 'lead2', 'lead3', 'avr', 'avl', 'avf']
+            if (keys.every(k => k in parsedJson)) {
+              arr = keys.map(k => parseFloat(parsedJson[k]))
             }
           }
-          if(!arr){
-            const nums = (line.match(/-?\d+(?:\.\d+)?/g) || []).map(v=>parseFloat(v))
-            if(nums.length >= 6){
-              arr = nums.slice(0,6)
-            } else if(nums.length === 2){
+          if (!arr) {
+            const nums = (line.match(/-?\d+(?:\.\d+)?/g) || []).map(v => parseFloat(v))
+            if (nums.length >= 6) {
+              arr = nums.slice(0, 6)
+            } else if (nums.length === 2) {
               // Build derived leads from Lead I (LA-RA) and Lead II (LL-RA)
               const lead1 = nums[0]
               const lead2 = nums[1]
               const lead3 = lead2 - lead1
               const ra = 0.0, la = lead1, ll = lead2
-              const avr = ra - (la + ll)/2
-              const avl = la - (ra + ll)/2
-              const avf = ll - (ra + la)/2
+              const avr = ra - (la + ll) / 2
+              const avl = la - (ra + ll) / 2
+              const avf = ll - (ra + la) / 2
               arr = [lead1, lead2, lead3, avr, avl, avf]
             }
           }
-          if(!arr) continue
+          if (!arr) continue
 
           // If we are calibrating, don't write incoming signal samples to the visible buffer.
           // This prevents the frontend from showing unstable signals during the Arduino's auto-cal phase.
-          if(isCalibrating){
+          if (isCalibrating) {
             continue
           }
 
           // Convert and optionally filter
           const mvs = arr.map(v => valueToMv(v))
-          for(let i=0;i<mvs.length;i++){
-            if(filterOn) mvs[i] = filterSample(i, mvs[i])
+          for (let i = 0; i < mvs.length; i++) {
+            if (filterOn) mvs[i] = filterSample(i, mvs[i])
           }
 
           // Recording for final report (continuous until user stops)
@@ -561,43 +563,65 @@ export default function ECGVisualizer(){
             })
             recordRef.current.count += 1
             // Use timestamp-based duration for robustness
-            const nowSec = Date.now()/1000
+            const nowSec = Date.now() / 1000
             const start = recordRef.current.startTime || nowSec
             const duration = nowSec - start
             setRecordingProgress(duration)
             // Auto-stop when we reach CAPTURE_SECONDS seconds (guard to call once)
             if (duration >= CAPTURE_SECONDS && !autoStopTriggeredRef.current) {
               autoStopTriggeredRef.current = true
-              try { stopRecording({ auto: true, captureSecond: CAPTURE_SECONDS }) } catch(e){ console.warn('auto-stop failed', e) }
+              try { stopRecording({ auto: true, captureSecond: CAPTURE_SECONDS }) } catch (e) { console.warn('auto-stop failed', e) }
             }
           }
 
-          const samples = bufferRef.current[0]?.length || Math.max(1,Math.floor(sampleRate*secondsWindow))
-          for(let i=0;i<mvs.length;i++){
+          const samples = bufferRef.current[0]?.length || Math.max(1, Math.floor(sampleRate * secondsWindow))
+          for (let i = 0; i < mvs.length; i++) {
             const mv = mvs[i]
-            if(!bufferRef.current[i]) bufferRef.current[i] = new Float32Array(samples)
+            if (!bufferRef.current[i]) bufferRef.current[i] = new Float32Array(samples)
             bufferRef.current[i][writeIndexRef.current] = mv
           }
           writeIndexRef.current = (writeIndexRef.current + 1) % samples
+
+          // Update live lead data for VCG and Risk Analysis components
+          // Get recent samples (last ~2 seconds for analysis)
+          const analysisWindow = Math.min(samples, Math.floor(sampleRate * 2))
+          const currentIdx = writeIndexRef.current
+          const extractRecent = (leadIdx) => {
+            const arr = []
+            for (let j = 0; j < analysisWindow; j++) {
+              const idx = (currentIdx - analysisWindow + j + samples) % samples
+              arr.push(bufferRef.current[leadIdx]?.[idx] || 0)
+            }
+            return arr
+          }
+
+          setLiveLeadData({
+            leadI: extractRecent(0),
+            leadII: extractRecent(1),
+            leadIII: extractRecent(2),
+            aVR: extractRecent(3),
+            aVL: extractRecent(4),
+            aVF: extractRecent(5)
+          })
         }
       }
-    }catch(err){
+    } catch (err) {
       console.error('Serial connect error', err)
       const msg = err && err.message ? err.message : String(err)
       setConnectError(msg)
-      alert('Connection failed: '+msg)
+      alert('Connection failed: ' + msg)
       setConnected(false)
     }
   }
 
-  async function disconnect(){
+  async function disconnect() {
     runningRef.current = false
     setConnected(false)
     setIsRecording(false)
-    try{
-      if(readerRef.current){ await readerRef.current.cancel(); readerRef.current=null }
-      if(portRef.current){ await portRef.current.close(); portRef.current=null }
-    }catch(e){console.warn(e)}
+    try {
+      if (readerRef.current) { await readerRef.current.cancel(); readerRef.current = null }
+      if (portRef.current) { await portRef.current.close(); portRef.current = null }
+    } catch (e) { console.warn(e) }
   }
 
   function startRecording() {
@@ -606,13 +630,13 @@ export default function ECGVisualizer(){
       return
     }
     // initialize ref buffers for each lead
-    recordRef.current = { active:true, data:{}, count:0, startTime: Date.now()/1000 }
-  autoStopTriggeredRef.current = false
-  manualStopRef.current = false
+    recordRef.current = { active: true, data: {}, count: 0, startTime: Date.now() / 1000 }
+    autoStopTriggeredRef.current = false
+    manualStopRef.current = false
     leads.forEach(ln => { recordRef.current.data[ln] = [] })
-  // Clear any frozen display so live view resumes and allow incoming data
-  frozenBufferRef.current = null
-  freezeDisplayRef.current = false
+    // Clear any frozen display so live view resumes and allow incoming data
+    frozenBufferRef.current = null
+    freezeDisplayRef.current = false
     setRecordingProgress(0)
     setIsRecording(true)
     setShowReport(false)
@@ -657,11 +681,11 @@ export default function ECGVisualizer(){
     // Normalize snap into short keys and long keys and derive missing leads so report is consistent
     const normalized = {}
     // helper to set both short and long labels
-    function setLead(short, long, arr){ if(!arr) arr = null; normalized[short] = arr; normalized[long] = arr }
+    function setLead(short, long, arr) { if (!arr) arr = null; normalized[short] = arr; normalized[long] = arr }
 
     // populate from snap which uses long labels (e.g., 'Lead I')
     leads.forEach((longLabel, idx) => {
-      const short = ['I','II','III','aVR','aVL','aVF'][idx]
+      const short = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF'][idx]
       setLead(short, longLabel, snap[longLabel] || snap[short] || snap[`Lead ${short}`])
     })
 
@@ -672,25 +696,25 @@ export default function ECGVisualizer(){
       if ((!normalized['III'] || !normalized['Lead III']) && I && II) {
         const len = Math.min(I.length, II.length)
         const arr = new Array(len)
-        for (let k=0;k<len;k++) arr[k] = II[k] - I[k]
-        setLead('III','Lead III', arr)
+        for (let k = 0; k < len; k++) arr[k] = II[k] - I[k]
+        setLead('III', 'Lead III', arr)
       }
       if ((!normalized['aVR'] || !normalized['aVL'] || !normalized['aVF']) && I && II) {
         const len = Math.min(I.length, II.length)
         const avr = new Array(len), avl = new Array(len), avf = new Array(len)
-        for (let k=0;k<len;k++){
+        for (let k = 0; k < len; k++) {
           const la = I[k]; const ll = II[k]; const ra = 0.0
-          avr[k] = ra - (la + ll)/2
-          avl[k] = la - (ra + ll)/2
-          avf[k] = ll - (ra + la)/2
+          avr[k] = ra - (la + ll) / 2
+          avl[k] = la - (ra + ll) / 2
+          avf[k] = ll - (ra + la) / 2
         }
-        setLead('aVR','aVR', avr)
-        setLead('aVL','aVL', avl)
-        setLead('aVF','aVF', avf)
+        setLead('aVR', 'aVR', avr)
+        setLead('aVL', 'aVL', avl)
+        setLead('aVF', 'aVF', avf)
       }
     }
 
-  setRecordedData(normalized)
+    setRecordedData(normalized)
 
     // If this was a manual stop (not auto), snapshot the current live ring buffer
     // and freeze the on-screen display so the user sees the exact frozen waveform.
@@ -730,20 +754,20 @@ export default function ECGVisualizer(){
   // Countdown timer for 10-second wait after recording
   useEffect(() => {
     if (!isWaiting) return
-    
+
     let elapsed = 0
     const interval = setInterval(() => {
       elapsed += 0.1
       setWaitProgress(elapsed)
-      
+
       if (elapsed >= WAIT_SECONDS) {
         clearInterval(interval)
         setIsWaiting(false)
         setWaitProgress(0)
-          // Report is now ready - user may open it via the 'View Report' button (no auto-popup)
+        // Report is now ready - user may open it via the 'View Report' button (no auto-popup)
       }
     }, 100)
-    
+
     return () => clearInterval(interval)
   }, [isWaiting])
 
@@ -768,81 +792,22 @@ export default function ECGVisualizer(){
   }
 
   // export PNG - paired leads layout
-  function exportPNG(){
+  function exportPNG() {
     const cvsList = pairCanvasRefs.current.filter(Boolean)
-    if(!cvsList.length) return
+    if (!cvsList.length) return
     const totalW = cvsList[0].width
-    const totalH = cvsList.reduce((s,c)=>s+c.height,0)
+    const totalH = cvsList.reduce((s, c) => s + c.height, 0)
     const out = document.createElement('canvas')
     out.width = totalW; out.height = totalH
     const ctx = out.getContext('2d')
     let y = 0
-    for(let c of cvsList){ ctx.drawImage(c,0,y); y += c.height }
+    for (let c of cvsList) { ctx.drawImage(c, 0, y); y += c.height }
     const url = out.toDataURL('image/png')
     const a = document.createElement('a'); a.href = url; a.download = 'ecg_export.png'; a.click()
   }
 
   return (
-    <div style={{background:'#0a0e12', minHeight:'100vh', padding:'20px'}}>
-      {/* Back Button */}
-      <button 
-        onClick={() => navigate('/')} 
-        style={{
-          position: 'fixed',
-          top: '20px',
-          left: '20px',
-          zIndex: 10000,
-          background: '#1a2028',
-          color: '#fff',
-          border: '1px solid #2d3748',
-          padding: '10px 20px',
-          borderRadius: '8px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          fontSize: '14px',
-          fontWeight: '600'
-        }}
-      >
-        ← Back to Home
-      </button>
-
-      {/* Header */}
-      <header style={{
-        background: 'linear-gradient(135deg, #0f1620 0%, #1a2332 100%)',
-        border: '1px solid #1b2330',
-        borderRadius: '16px',
-        padding: '24px 28px',
-        marginBottom: '24px',
-        marginTop: '50px'
-      }}>
-        <div style={{display:'flex',alignItems:'center',gap:'16px'}}>
-          <div style={{
-            width: '44px',
-            height: '44px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(0, 217, 255, 0.1)',
-            borderRadius: '12px',
-            border: '2px solid rgba(0, 217, 255, 0.3)'
-          }}>
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-              <path d="M2 20 L10 20 L13 8 L17 32 L21 12 L25 28 L29 20 L38 20" 
-                stroke="#00d9ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-            </svg>
-          </div>
-          <div>
-            <h1 style={{margin:0,fontSize:'32px',fontWeight:900,color:'#fff'}}>
-              <span style={{background:'linear-gradient(135deg, #00d9ff 0%, #7c3aed 50%, #ff2e97 100%)',WebkitBackgroundClip:'text',WebkitTextFillColor:'transparent'}}>NEXT</span>
-              <span style={{color:'#fff'}}>ECG</span>
-            </h1>
-            <p style={{margin:0,fontSize:'14px',color:'#9aa4b2'}}>Professional 6-Lead Cardiac Monitor</p>
-          </div>
-        </div>
-      </header>
-
+    <div>
       {/* Final Report Modal */}
       {showReport && (
         <div style={{
@@ -866,12 +831,12 @@ export default function ECGVisualizer(){
               }}>
                 💾 Download Report
               </button>
-              <button onClick={()=>{ setShowReport(false); if(connected && !isCalibrating) { setRecordedData(null); startRecording() } }} className="btn" style={{ 
+              <button onClick={() => { setShowReport(false); if (connected && !isCalibrating) { setRecordedData(null); startRecording() } }} className="btn" style={{
                 background: '#41ff8b', color: '#0b0f14', fontWeight: 'bold', padding: '12px 24px'
               }}>
                 🔁 Restart 15s Capture
               </button>
-              <button onClick={()=>setShowReport(false)} className="btn" style={{ padding: '12px 24px' }}>
+              <button onClick={() => setShowReport(false)} className="btn" style={{ padding: '12px 24px' }}>
                 ✕ Close
               </button>
             </div>
@@ -880,52 +845,52 @@ export default function ECGVisualizer(){
       )}
 
       <div className="controls grid-card">
-        <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {!connected ? (
             <button className="btn" onClick={connect}>🔌 Connect Device</button>
           ) : (
             <>
               <button className="btn" onClick={disconnect}>⛔ Disconnect</button>
               {!isRecording && !isCalibrating && (
-                <button className="btn" onClick={startRecording} style={{background:'#00d9ff',color:'#071422',fontWeight:'700',marginLeft:8}}>▶ Start Recording</button>
+                <button className="btn" onClick={startRecording} style={{ background: '#00d9ff', color: '#071422', fontWeight: '700', marginLeft: 8 }}>▶ Start Recording</button>
               )}
             </>
           )}
           {connectError && (
-            <div style={{color:'#ffb4b4',background:'#3b1212',padding:'8px 12px',borderRadius:6,marginLeft:8}}>
-              <div style={{fontWeight:700}}>Serial error</div>
-              <div style={{fontSize:12,opacity:0.9,whiteSpace:'pre-wrap'}}>{connectError}</div>
-              <div style={{marginTop:8}}>
-                <button className="btn" onClick={connect} style={{marginRight:8}}>Retry</button>
-                <button className="btn" onClick={async ()=>{
-                  try{ const ports = await navigator.serial.getPorts(); alert('Known ports: '+ports.length) }catch(e){ alert('getPorts failed: '+e) }
+            <div style={{ color: '#ffb4b4', background: '#3b1212', padding: '8px 12px', borderRadius: 6, marginLeft: 8 }}>
+              <div style={{ fontWeight: 700 }}>Serial error</div>
+              <div style={{ fontSize: 12, opacity: 0.9, whiteSpace: 'pre-wrap' }}>{connectError}</div>
+              <div style={{ marginTop: 8 }}>
+                <button className="btn" onClick={connect} style={{ marginRight: 8 }}>Retry</button>
+                <button className="btn" onClick={async () => {
+                  try { const ports = await navigator.serial.getPorts(); alert('Known ports: ' + ports.length) } catch (e) { alert('getPorts failed: ' + e) }
                 }}>List Ports</button>
               </div>
             </div>
           )}
-          
+
           {isRecording && (
-            <button className="btn" onClick={()=>stopRecording()} style={{background:'#ef4444',color:'#fff',fontWeight:'bold'}}>
+            <button className="btn" onClick={() => stopRecording()} style={{ background: '#ef4444', color: '#fff', fontWeight: 'bold' }}>
               ⏹ Stop Recording
             </button>
           )}
-          
-          <label>Gain: <input type="range" min="0.2" max="6" step="0.1" value={gain} onChange={e=>setGain(parseFloat(e.target.value))} /></label>
-          <label>Pixels/mm: <input type="range" min="1" max="6" step="0.5" value={pixelsPerMm} onChange={e=>setPixelsPerMm(parseFloat(e.target.value))} /></label>
-          <label>Window (s): <input type="number" min="1" max="10" value={secondsWindow} onChange={e=>setSecondsWindow(parseInt(e.target.value)||1)} /></label>
-          <label>Sample rate (Hz): <input type="number" min="20" max="1000" step="1" value={sampleRate} onChange={e=>setSampleRate(Math.max(1, parseInt(e.target.value)||DEFAULT_SAMPLE_RATE))} /></label>
-          <label>Input Units: 
-            <select value={inputUnits} onChange={e=>setInputUnits(e.target.value)}>
+
+          <label>Gain: <input type="range" min="0.2" max="6" step="0.1" value={gain} onChange={e => setGain(parseFloat(e.target.value))} /></label>
+          <label>Pixels/mm: <input type="range" min="1" max="6" step="0.5" value={pixelsPerMm} onChange={e => setPixelsPerMm(parseFloat(e.target.value))} /></label>
+          <label>Window (s): <input type="number" min="1" max="10" value={secondsWindow} onChange={e => setSecondsWindow(parseInt(e.target.value) || 1)} /></label>
+          <label>Sample rate (Hz): <input type="number" min="20" max="1000" step="1" value={sampleRate} onChange={e => setSampleRate(Math.max(1, parseInt(e.target.value) || DEFAULT_SAMPLE_RATE))} /></label>
+          <label>Input Units:
+            <select value={inputUnits} onChange={e => setInputUnits(e.target.value)}>
               <option value="mv">mV</option>
               <option value="adc">ADC (0-1023)</option>
             </select>
           </label>
-          <label style={{display:'flex',alignItems:'center',gap:6}}>
-            <input type="checkbox" checked={filterOn} onChange={e=>setFilterOn(e.target.checked)} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="checkbox" checked={filterOn} onChange={e => setFilterOn(e.target.checked)} />
             <span>Filter 0.5–40 Hz</span>
           </label>
-          <label style={{display:'flex',alignItems:'center',gap:6}} title="Try to ensure all 6 leads appear on the printed report (derive missing leads from I & II)">
-            <input type="checkbox" checked={advancedReport} onChange={e=>setAdvancedReport(e.target.checked)} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }} title="Try to ensure all 6 leads appear on the printed report (derive missing leads from I & II)">
+            <input type="checkbox" checked={advancedReport} onChange={e => setAdvancedReport(e.target.checked)} />
             <span>Advanced Report (force 6 leads)</span>
           </label>
           <button className="btn" onClick={exportPNG}>📷 Export Live PNG</button>
@@ -941,34 +906,47 @@ export default function ECGVisualizer(){
             }}>⬇ Export Report PNG</button>
           )}
           {recordedData && !isWaiting && (
-            <button className="btn" onClick={() => setShowReport(true)} title="View the red-grid report" style={{background:'#dc2626',color:'#fff'}}>
+            <button className="btn" onClick={() => setShowReport(true)} title="View the red-grid report" style={{ background: '#dc2626', color: '#fff' }}>
               🩺 View Report
             </button>
           )}
-          <div style={{marginLeft:'auto',fontSize:14,fontWeight:600}}>
-            Status: <strong className={isRecording || isWaiting ? 'recording-indicator' : ''} style={{color: isCalibrating ? '#f59e0b' : isRecording ? '#ff2e97' : isWaiting ? '#7c3aed' : (connected ? '#00d9ff' : '#6b7280')}}>
-              {isCalibrating ? '🔄 Calibrating...' : 
-               isRecording ? `⏺ Recording ${recordingProgress.toFixed(1)}s` : 
-               isWaiting ? `⏳ Processing... ${(WAIT_SECONDS - waitProgress).toFixed(1)}s` :
-               (connected ? '✓ Ready' : '⚠ Disconnected')}
+          <div style={{ marginLeft: 'auto', fontSize: 14, fontWeight: 600 }}>
+            Status: <strong className={isRecording || isWaiting ? 'recording-indicator' : ''} style={{ color: isCalibrating ? '#f59e0b' : isRecording ? '#ff2e97' : isWaiting ? '#7c3aed' : (connected ? '#00d9ff' : '#6b7280') }}>
+              {isCalibrating ? '🔄 Calibrating...' :
+                isRecording ? `⏺ Recording ${recordingProgress.toFixed(1)}s` :
+                  isWaiting ? `⏳ Processing... ${(WAIT_SECONDS - waitProgress).toFixed(1)}s` :
+                    (connected ? '✓ Ready' : '⚠ Disconnected')}
             </strong>
           </div>
         </div>
       </div>
 
+      {/* Dashboard Row: VCG + Risk Analysis */}
+      <div className="dashboard-row">
+        <VectorCardiogram
+          leadData={liveLeadData}
+          sampleRate={sampleRate}
+          gain={gain}
+        />
+        <RiskAnalysis
+          leadData={liveLeadData}
+          sampleRate={sampleRate}
+        />
+      </div>
+
       {/* Paired Leads Display */}
       <div>
-        {leadPairs.map((pair, rowIdx)=> {
+        {leadPairs.map((pair, rowIdx) => {
           const [leftIdx, rightIdx] = pair
           return (
-            <div key={rowIdx} className="grid-card" style={{marginBottom:8}}>
+            <div key={rowIdx} className="grid-card" style={{ marginBottom: 8 }}>
               <div className="lead-row">
                 <div className="lead-title">{leads[leftIdx]} • {leads[rightIdx]}</div>
-                <div style={{fontSize:12,color:'#6b7280'}}>10 mm/mV • 25 mm/s</div>
+                <div style={{ fontSize: 12, color: '#718096' }}>10 mm/mV • 25 mm/s</div>
               </div>
               <canvas
-                ref={el=>{ pairCanvasRefs.current[rowIdx]=el; if(el) sizeAllCanvases() }}
-                style={{width:'100%',height:100,marginTop:8}}
+                ref={el => { pairCanvasRefs.current[rowIdx] = el; if (el) sizeAllCanvases() }}
+                style={{ width: '100%', height: 100, marginTop: 8 }}
               />
             </div>
           )
@@ -976,7 +954,7 @@ export default function ECGVisualizer(){
       </div>
 
       <div className="footer-note">
-        Tip: After calibration, recording starts automatically. Click "⏹ Stop Recording" when you have 10-15 seconds of clean data. Wait 10s for processing, then view the steady ECG report with all 6 leads.
+        📋 <strong>Pro Tip:</strong> After calibration, recording starts automatically. The Risk Assessment panel analyzes your ECG in real-time, while the Vectorcardiogram shows your cardiac vector rotation. Click "⏹ Stop Recording" when you have 10-15 seconds of clean data.
       </div>
     </div>
   )
